@@ -249,31 +249,31 @@ def handle_missing(df):
             'Exterior1st': 'VinylSd',
             'Exterior2nd': 'VinylSd',
             'MasVnrType': 'None',
-            'BsmtQual': 'NoBsmt',
-            'BsmtCond': 'NoBsmt',
-            'BsmtExposure': 'NoBsmt',
-            'BsmtFinType1': 'NoBsmt',
-            'BsmtFinType2': 'NoBsmt',
+            'BsmtQual': 'NA',
+            'BsmtCond': 'NA',
+            'BsmtExposure': 'NA',
+            'BsmtFinType1': 'NA',
+            'BsmtFinType2': 'NA',
             'BsmtFullBath': 0,
             'BsmtHalfBath': 0,
             'KitchenQual': 'TA',
             'Functional': 'Typ',
-            'FireplaceQu': 'NoFireplace',
+            'FireplaceQu': 'NA',
             'GarageType': 'NoGarage',
-            'GarageFinish': 'NoGarage',
-            'GarageQual': 'NoGarage',
-            'GarageCond': 'NoGarage',   
-            'PoolQC': 'NoPool',
+            'GarageFinish': 'NA',
+            'GarageQual': 'NA',
+            'GarageCond': 'NA',   
+            'PoolQC': 'NA',
             'Fence': 'NoFence',
             'MiscFeature': 'None',
             'Electrical' : 'SBrkr'
             })
 
     df.loc[df.MasVnrType == 'None', 'MasVnrArea'] = 0
-    df.loc[df.BsmtFinType1=='NoBsmt', 'BsmtFinSF1'] = 0
-    df.loc[df.BsmtFinType2=='NoBsmt', 'BsmtFinSF2'] = 0
-    df.loc[df.BsmtFinType1=='NoBsmt', 'BsmtUnfSF'] = 0
-    df.loc[df.BsmtFinType1=='NoBsmt', 'TotalBsmtSF'] = 0
+    df.loc[df.BsmtFinType1=='NA', 'BsmtFinSF1'] = 0
+    df.loc[df.BsmtFinType2=='NA', 'BsmtFinSF2'] = 0
+    df.loc[df.BsmtFinType1=='NA', 'BsmtUnfSF'] = 0
+    df.loc[df.BsmtFinType1=='NA', 'TotalBsmtSF'] = 0
     df.loc[df['GarageYrBlt'].isnull(), 'GarageYrBlt'] = df['YearBuilt']
     df.loc[df['GarageArea'].isnull(), 'GarageArea'] = df.loc[df['GarageType']=='Detchd', 'GarageArea'].mean()
     df.loc[df['GarageCars'].isnull(), 'GarageCars'] = df.loc[df['GarageType']=='Detchd', 'GarageCars'].median()
@@ -288,31 +288,153 @@ def handle_missing(df):
 
 
 def change_types(df):
+    # Some of the non-numeric predictors are stored as numbers; we convert them into strings 
     df['MSSubClass'] = df['MSSubClass'].apply(str)
     df['YrSold'] = df['YrSold'].astype(str)
     df['MoSold'] = df['MoSold'].astype(str)
     return df
 
 
+def set_new_columns(df):
+    #df['TotalSF'] = df['TotalBsmtSF'] + df['1stFlrSF'] + df['2ndFlrSF']
+    
+    df['YearBuiltBin'] = pd.qcut(df['YearBuilt'], 10)
+    label = LabelEncoder()
+    df['YearBuiltBin_Code'] = label.fit_transform(df['YearBuiltBin'])
+
+    df.drop(['YearBuiltBin'], axis = 1, inplace = True)
+    
+    df['Total_Home_Quality'] = df['OverallQual'] + df['OverallCond']
+   
+
+    
+    overall_poor_qu = df.OverallQual.copy()
+    overall_poor_qu = 5 - overall_poor_qu
+    overall_poor_qu[overall_poor_qu<0] = 0
+    overall_poor_qu.name = 'overall_poor_qu'
+    overall_good_qu = df.OverallQual.copy()
+    overall_good_qu = overall_good_qu - 5
+    overall_good_qu[overall_good_qu<0] = 0
+    overall_good_qu.name = 'overall_good_qu'
+    overall_poor_cond = df.OverallCond.copy()
+    overall_poor_cond = 5 - overall_poor_cond
+    overall_poor_cond[overall_poor_cond<0] = 0
+    overall_poor_cond.name = 'overall_poor_cond'
+    overall_good_cond = df.OverallCond.copy()
+    overall_good_cond = overall_good_cond - 5
+    overall_good_cond[overall_good_cond<0] = 0
+    overall_good_cond.name = 'overall_good_cond'
+    exter_poor_qu = df.ExterQual.copy()
+    exter_poor_qu[exter_poor_qu<3] = 1
+    exter_poor_qu[exter_poor_qu>=3] = 0
+    exter_poor_qu.name = 'exter_poor_qu'
+    exter_good_qu = df.ExterQual.copy()
+    exter_good_qu[exter_good_qu<=3] = 0
+    exter_good_qu[exter_good_qu>3] = 1
+    exter_good_qu.name = 'exter_good_qu'
+    exter_poor_cond = df.ExterCond.copy()
+    exter_poor_cond[exter_poor_cond<3] = 1
+    exter_poor_cond[exter_poor_cond>=3] = 0
+    exter_poor_cond.name = 'exter_poor_cond'
+    exter_good_cond = df.ExterCond.copy()
+    exter_good_cond[exter_good_cond<=3] = 0
+    exter_good_cond[exter_good_cond>3] = 1
+    exter_good_cond.name = 'exter_good_cond'
+    bsmt_poor_cond = df.BsmtCond.copy()
+    bsmt_poor_cond[bsmt_poor_cond<3] = 1
+    bsmt_poor_cond[bsmt_poor_cond>=3] = 0
+    bsmt_poor_cond.name = 'bsmt_poor_cond'
+    bsmt_good_cond = df.BsmtCond.copy()
+    bsmt_good_cond[bsmt_good_cond<=3] = 0
+    bsmt_good_cond[bsmt_good_cond>3] = 1
+    bsmt_good_cond.name = 'bsmt_good_cond'
+    garage_poor_qu = df.GarageQual.copy()
+    garage_poor_qu[garage_poor_qu<3] = 1
+    garage_poor_qu[garage_poor_qu>=3] = 0
+    garage_poor_qu.name = 'garage_poor_qu'
+    garage_good_qu = df.GarageQual.copy()
+    garage_good_qu[garage_good_qu<=3] = 0
+    garage_good_qu[garage_good_qu>3] = 1
+    garage_good_qu.name = 'garage_good_qu'
+    garage_poor_cond = df.GarageCond.copy()
+    garage_poor_cond[garage_poor_cond<3] = 1
+    garage_poor_cond[garage_poor_cond>=3] = 0
+    garage_poor_cond.name = 'garage_poor_cond'
+    garage_good_cond = df.GarageCond.copy()
+    garage_good_cond[garage_good_cond<=3] = 0
+    garage_good_cond[garage_good_cond>3] = 1
+    garage_good_cond.name = 'garage_good_cond'
+    kitchen_poor_qu = df.KitchenQual.copy()
+    kitchen_poor_qu[kitchen_poor_qu<3] = 1
+    kitchen_poor_qu[kitchen_poor_qu>=3] = 0
+    kitchen_poor_qu.name = 'kitchen_poor_qu'
+    kitchen_good_qu = df.KitchenQual.copy()
+    kitchen_good_qu[kitchen_good_qu<=3] = 0
+    kitchen_good_qu[kitchen_good_qu>3] = 1
+    kitchen_good_qu.name = 'kitchen_good_qu'
+    qu_list = pd.concat((overall_poor_qu, overall_good_qu, overall_poor_cond, overall_good_cond, exter_poor_qu,
+                         exter_good_qu, exter_poor_cond, exter_good_cond, bsmt_poor_cond, bsmt_good_cond, garage_poor_qu,
+                         garage_good_qu, garage_poor_cond, garage_good_cond, kitchen_poor_qu, kitchen_good_qu), axis=1)
+
+    df = pd.concat((df, qu_list), axis=1)
+    return df
+
+
 def log1p(df):
-    t = ['LotFrontage', 'LotArea', 'MasVnrArea', 'BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF', 'TotalBsmtSF',
-     '1stFlrSF', '2ndFlrSF', 'LowQualFinSF', 'GrLivArea', 'GarageArea', 'WoodDeckSF', 'OpenPorchSF',
-     'EnclosedPorch', '3SsnPorch', 'ScreenPorch', 'PoolArea', 'MiscVal']
+    t = ['LotFrontage', 'LotArea', 'MasVnrArea', 'BsmtFinSF1', 'BsmtFinSF2', 
+         'BsmtUnfSF', 'TotalBsmtSF', '1stFlrSF', '2ndFlrSF', 'LowQualFinSF', 
+         'GrLivArea', 'BsmtFullBath', 'BsmtHalfBath', 'FullBath', 'HalfBath', 
+         'BedroomAbvGr', 'KitchenAbvGr', 'TotRmsAbvGrd', 'Fireplaces', 
+         'GarageCars', 'GarageArea', 'PoolArea', 'MiscVal', 'YearRemodAdd', 
+         'OverallQual', 'OverallCond', 'ExterQual', 'ExterCond', 
+         'KitchenQual', 'HeatingQC', 'BsmtQual', 'BsmtCond', 'FireplaceQu', 
+         'GarageQual', 'PoolQC', 'PavedDrive']
+    # 'HasWoodDeck', 'HasOpenPorch', 'HasEnclosedPorch', 'Has3SsnPorch', 'HasScreenPorch'
     df.loc[:, t] = np.log1p(df.loc[:, t])    
     return df
 
 
+def ordinal_cats(df):
+    cat_qual_1 = ['Ex', 'Gd', 'TA', 'Fa', 'Po', 'NA']
+    cat_qual_2 = ['Gd', 'Av', 'Mn', 'No', 'NA']
+    cat_qual_3 = ['GLQ', 'ALQ', 'BLQ', 'Rec', 'LwQ', 'Unf', 'NA']
+    cat_qual_4 = ['Gtl', 'Mod', 'Sev']
+    cat_qual_5 = ['Gravel', 'Paved', 'NA']
+    cat_qual_6 = ['Y', 'P', 'N']
+    cat_qual_7 = ['Fin', 'RFn', 'Unf', 'NA']
+    cat_qual_8 = ['Y', 'N']
+    
+
+    df['ExterQual'] = pd.Categorical(df['ExterQual'], categories=cat_qual_1, ordered=True).codes
+    df['ExterCond'] = pd.Categorical(df['ExterCond'], categories=cat_qual_1, ordered=True).codes
+    df['BsmtQual'] = pd.Categorical(df['BsmtQual'], categories=cat_qual_1, ordered=True).codes
+    df['BsmtCond'] = pd.Categorical(df['BsmtCond'], categories=cat_qual_1, ordered=True).codes
+    df['BsmtExposure'] = pd.Categorical(df['BsmtExposure'], categories=cat_qual_2, ordered=True).codes
+    df['BsmtFinType1'] = pd.Categorical(df['BsmtFinType1'], categories=cat_qual_3, ordered=True).codes
+    df['BsmtFinType2'] = pd.Categorical(df['BsmtFinType2'], categories=cat_qual_3, ordered=True).codes
+    df['HeatingQC'] = pd.Categorical(df['HeatingQC'], categories=cat_qual_1, ordered=True).codes
+    df['KitchenQual'] = pd.Categorical(df['KitchenQual'], categories=cat_qual_1, ordered=True).codes
+    df['FireplaceQu'] = pd.Categorical(df['FireplaceQu'], categories=cat_qual_1, ordered=True).codes
+    df['GarageQual'] = pd.Categorical(df['GarageQual'], categories=cat_qual_1, ordered=True).codes
+    df['GarageCond'] = pd.Categorical(df['GarageCond'], categories=cat_qual_1, ordered=True).codes
+    df['GarageFinish'] = pd.Categorical(df['GarageFinish'], categories=cat_qual_7, ordered=True).codes
+    df['PoolQC'] = pd.Categorical(df['PoolQC'], categories=cat_qual_1, ordered=True).codes
+    df['LandSlope'] = pd.Categorical(df['LandSlope'], categories=cat_qual_4, ordered=True).codes
+    df['Street'] = pd.Categorical(df['Street'], categories=cat_qual_5, ordered=True).codes
+    df['Alley'] = pd.Categorical(df['Alley'], categories=cat_qual_4, ordered=True).codes
+    df['PavedDrive'] = pd.Categorical(df['PavedDrive'], categories=cat_qual_6, ordered=True).codes
+    df['CentralAir'] = pd.Categorical(df['CentralAir'], categories=cat_qual_8, ordered=True).codes
+    
+    return df
+
+
 def get_dummies(df):
-    df = pd.get_dummies(df, columns=['MSZoning', 'Street',
-       'Alley', 'LotShape', 'LandContour', 'Utilities', 'LotConfig',
-       'LandSlope', 'Neighborhood', 'Condition1', 'Condition2',
-       'BldgType', 'HouseStyle', 
-       'RoofStyle', 'RoofMatl', 'Exterior1st', 'Exterior2nd', 'MasVnrType', 
-       'ExterQual', 'ExterCond', 'Foundation', 'BsmtQual', 'BsmtCond',
-       'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2', 'Heating', 'HeatingQC',
-       'CentralAir', 'Electrical', 'KitchenQual', 'Functional', 'FireplaceQu',
-       'GarageType', 'GarageFinish', 'GarageQual', 'GarageCond', 'PavedDrive',
-       'PoolQC', 'Fence', 'MiscFeature', 'SaleType', 'SaleCondition'], drop_first=True)
+    df = pd.get_dummies(df, columns=['MSSubClass', 'MSZoning', 'LotShape', 
+       'LandContour', 'Utilities', 'LotConfig', 'LandSlope', 'Neighborhood', 
+       'Condition1', 'Condition2', 'BldgType', 'HouseStyle', 'RoofStyle', 
+       'RoofMatl', 'Exterior1st', 'Exterior2nd', 'MasVnrType', 'Foundation', 
+       'Heating', 'Electrical', 'Functional', 'GarageType', 
+       'Fence', 'MiscFeature', 'SaleType', 'SaleCondition'], drop_first=True)
     return df
 
 
@@ -330,10 +452,35 @@ def dummies_missing_cols(train, test):
 
     
 df_train = handle_missing(df_train)
+df_train = ordinal_cats(df_train)
+df_train = set_new_columns(df_train)
 df_train = change_types(df_train)
 
 df_test = handle_missing(df_test)
+df_test = ordinal_cats(df_test)
+df_test = set_new_columns(df_test)
 df_test = change_types(df_test)
+
+
+
+
+
+def addSquared(res, ls):
+    m = res.shape[1]
+    for l in ls:
+        res = res.assign(newcol=pd.Series(res[l]*res[l]).values)   
+        res.columns.values[m] = l + '_sq'
+        m += 1
+    return res 
+
+sqpredlist = ['YearRemodAdd', 'LotFrontage', 
+              'TotalBsmtSF', '1stFlrSF', '2ndFlrSF', 'GrLivArea',
+              'GarageCars', 'GarageArea',
+              'OverallQual','ExterQual','BsmtQual','GarageQual','FireplaceQu','KitchenQual']
+#df_train = addSquared(df_train, sqpredlist)
+#df_test = addSquared(df_test, sqpredlist)
+
+
 
 # Applying log transformation
 #train['SalePrice'] = np.log(train['SalePrice'])
@@ -410,8 +557,8 @@ coef = pd.Series(model_lasso.coef_, index = df_train.columns)
 
 print("Lasso picked " + str(sum(coef != 0)) + " variables and eliminated the other " +  str(sum(coef == 0)) + " variables")
 
-imp_coef = pd.concat([coef.sort_values().head(10),
-                     coef.sort_values().tail(10)])
+imp_coef = pd.concat([coef.sort_values().head(20),
+                     coef.sort_values().tail(20)])
     
 plt.rcParams['figure.figsize'] = (8.0, 10.0)
 imp_coef.plot(kind = "barh")
