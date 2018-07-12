@@ -1,16 +1,16 @@
 # Jon-Paul Boyd - Kaggle - Classifier to Predict Titantic Survial 
 # Importing the libraries
-import sys
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from scipy.stats import norm
 from scipy import stats
 import seaborn as sns
-import re as re
-from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-#from hyperopt_gbc import Hyperopt_gbc
+from sklearn.grid_search import ParameterGrid
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import KFold
+from sklearn.linear_model import Ridge, RidgeCV, ElasticNet, LassoCV, LassoLarsCV
 
 #processDataAnalysis=True
 processDataAnalysis=False
@@ -156,8 +156,9 @@ if processDataAnalysis:
     cols = ['SalePrice', 'OverallQual', 'GrLivArea', 'GarageCars', 'TotalBsmtSF', 'FullBath', 'YearBuilt']
     sns.pairplot(df_train[cols], size = 2.5)
     plt.show()
+
     
-    #Outliers - quick analysis through the standard deviation of 'SalePrice' and a set of scatter plots.
+    # Outliers - quick analysis through the standard deviation of 'SalePrice' and a set of scatter plots.
     # Standardizing data - How 'SalePrice' looks. Low range values are similar and not too far from 0.
     # High range values are far from 0 and the 7.something values are really out of range.
     # For now, we'll not consider any of these values as an outlier but we should be careful with those two 7.something values.
@@ -177,43 +178,20 @@ if processDataAnalysis:
     missing_data = pd.concat([total, percent], axis=1, keys=['Total', 'Percent'])
     missing_data.head(20)
 
- # Bivariate analysis saleprice/grlivarea
-    # The two values with bigger 'GrLivArea' seem strange and they are not following the crowd. 
-    # We can speculate why this is happening. Maybe they refer to agricultural area and that 
-    # could explain the low price. I'm not sure about this but I'm quite confident that these 
-    # two points are not representative of the typical case. Therefore, we'll define them as 
-    # outliers and delete them.
-    
-    # The two observations in the top of the plot are those 7.something observations that we 
-    # said we should be careful about. They look like two special cases, however they seem 
-    # to be following the trend. For that reason, we will keep them.
+    # Bivariate analysis saleprice/grlivarea
     var = 'GrLivArea'
     data = pd.concat([df_train['SalePrice'], df_train[var]], axis=1)
     data.plot.scatter(x=var, y='SalePrice', ylim=(0,800000))
     
-    
-    #deleting points
-    #df_train.sort_values(by = 'GrLivArea', ascending = False)[:2]
-    #df_train = df_train.drop(df_train[dataset_full['Id'] == 1299].index)
-    #df_train = df_train.drop(df_train[dataset_full['Id'] == 524].index)
-    
+      
     # Bivariate analysis saleprice/grlivarea
     var = 'TotalBsmtSF'
     data = pd.concat([df_train['SalePrice'], df_train[var]], axis=1)
     data.plot.scatter(x=var, y='SalePrice', ylim=(0,800000))
     
-    #df_train.sort_values(by = 'GrLivArea', ascending = False)[:2]
-    #df_train = df_train.drop(df_train[df_train['Id'] == 1299].index)
-    #df_train = df_train.drop(df_train[df_train['Id'] == 524].index)
-    
-    
-    # In search of normality - histogram and normal probability plot
-    # Normal probability plot - Data distribution should closely follow the diagonal 
-    # that represents the normal distribution.
     sns.distplot(df_train['SalePrice'], fit=norm)
     fig = plt.figure()
     res = stats.probplot(df_train['SalePrice'], plot=plt)
-
 
     df_full.groupby('MSZoning').count()
     df_full.groupby('Alley').count()
@@ -239,6 +217,7 @@ if processDataAnalysis:
     df_full.groupby('MiscFeature').count()
     df_full.groupby('Electrical').count()
     df_full.groupby('SaleType').count()
+
     
 def handle_missing(df):
     
@@ -288,108 +267,37 @@ def handle_missing(df):
 
 
 def change_types(df):
-    # Some of the non-numeric predictors are stored as numbers; we convert them into strings 
+    # convert to strings 
     df['MSSubClass'] = df['MSSubClass'].apply(str)
-    df['YrSold'] = df['YrSold'].astype(str)
-    df['MoSold'] = df['MoSold'].astype(str)
     return df
 
 
 def set_new_columns(df):
-    #df['TotalSF'] = df['TotalBsmtSF'] + df['1stFlrSF'] + df['2ndFlrSF']
+    df['TotalSF'] = df['TotalBsmtSF'] + df['1stFlrSF'] + df['2ndFlrSF']
+    df['Total_Home_Quality'] = df['OverallQual'] + df['OverallCond']    
     
     df['YearBuiltBin'] = pd.qcut(df['YearBuilt'], 10)
     label = LabelEncoder()
     df['YearBuiltBin_Code'] = label.fit_transform(df['YearBuiltBin'])
-
     df.drop(['YearBuiltBin'], axis = 1, inplace = True)
-    
-    df['Total_Home_Quality'] = df['OverallQual'] + df['OverallCond']
-   
 
-    
-    overall_poor_qu = df.OverallQual.copy()
-    overall_poor_qu = 5 - overall_poor_qu
-    overall_poor_qu[overall_poor_qu<0] = 0
-    overall_poor_qu.name = 'overall_poor_qu'
-    overall_good_qu = df.OverallQual.copy()
-    overall_good_qu = overall_good_qu - 5
-    overall_good_qu[overall_good_qu<0] = 0
-    overall_good_qu.name = 'overall_good_qu'
-    overall_poor_cond = df.OverallCond.copy()
-    overall_poor_cond = 5 - overall_poor_cond
-    overall_poor_cond[overall_poor_cond<0] = 0
-    overall_poor_cond.name = 'overall_poor_cond'
-    overall_good_cond = df.OverallCond.copy()
-    overall_good_cond = overall_good_cond - 5
-    overall_good_cond[overall_good_cond<0] = 0
-    overall_good_cond.name = 'overall_good_cond'
-    exter_poor_qu = df.ExterQual.copy()
-    exter_poor_qu[exter_poor_qu<3] = 1
-    exter_poor_qu[exter_poor_qu>=3] = 0
-    exter_poor_qu.name = 'exter_poor_qu'
-    exter_good_qu = df.ExterQual.copy()
-    exter_good_qu[exter_good_qu<=3] = 0
-    exter_good_qu[exter_good_qu>3] = 1
-    exter_good_qu.name = 'exter_good_qu'
-    exter_poor_cond = df.ExterCond.copy()
-    exter_poor_cond[exter_poor_cond<3] = 1
-    exter_poor_cond[exter_poor_cond>=3] = 0
-    exter_poor_cond.name = 'exter_poor_cond'
-    exter_good_cond = df.ExterCond.copy()
-    exter_good_cond[exter_good_cond<=3] = 0
-    exter_good_cond[exter_good_cond>3] = 1
-    exter_good_cond.name = 'exter_good_cond'
-    bsmt_poor_cond = df.BsmtCond.copy()
-    bsmt_poor_cond[bsmt_poor_cond<3] = 1
-    bsmt_poor_cond[bsmt_poor_cond>=3] = 0
-    bsmt_poor_cond.name = 'bsmt_poor_cond'
-    bsmt_good_cond = df.BsmtCond.copy()
-    bsmt_good_cond[bsmt_good_cond<=3] = 0
-    bsmt_good_cond[bsmt_good_cond>3] = 1
-    bsmt_good_cond.name = 'bsmt_good_cond'
-    garage_poor_qu = df.GarageQual.copy()
-    garage_poor_qu[garage_poor_qu<3] = 1
-    garage_poor_qu[garage_poor_qu>=3] = 0
-    garage_poor_qu.name = 'garage_poor_qu'
-    garage_good_qu = df.GarageQual.copy()
-    garage_good_qu[garage_good_qu<=3] = 0
-    garage_good_qu[garage_good_qu>3] = 1
-    garage_good_qu.name = 'garage_good_qu'
-    garage_poor_cond = df.GarageCond.copy()
-    garage_poor_cond[garage_poor_cond<3] = 1
-    garage_poor_cond[garage_poor_cond>=3] = 0
-    garage_poor_cond.name = 'garage_poor_cond'
-    garage_good_cond = df.GarageCond.copy()
-    garage_good_cond[garage_good_cond<=3] = 0
-    garage_good_cond[garage_good_cond>3] = 1
-    garage_good_cond.name = 'garage_good_cond'
-    kitchen_poor_qu = df.KitchenQual.copy()
-    kitchen_poor_qu[kitchen_poor_qu<3] = 1
-    kitchen_poor_qu[kitchen_poor_qu>=3] = 0
-    kitchen_poor_qu.name = 'kitchen_poor_qu'
-    kitchen_good_qu = df.KitchenQual.copy()
-    kitchen_good_qu[kitchen_good_qu<=3] = 0
-    kitchen_good_qu[kitchen_good_qu>3] = 1
-    kitchen_good_qu.name = 'kitchen_good_qu'
-    qu_list = pd.concat((overall_poor_qu, overall_good_qu, overall_poor_cond, overall_good_cond, exter_poor_qu,
-                         exter_good_qu, exter_poor_cond, exter_good_cond, bsmt_poor_cond, bsmt_good_cond, garage_poor_qu,
-                         garage_good_qu, garage_poor_cond, garage_good_cond, kitchen_poor_qu, kitchen_good_qu), axis=1)
+    df['YearRemodAddBin'] = pd.qcut(df['YearRemodAdd'], 5)
+    label = LabelEncoder()
+    df['YearRemodAddBin_Code'] = label.fit_transform(df['YearRemodAddBin'])
+    df.drop(['YearRemodAddBin'], axis = 1, inplace = True)
 
-    df = pd.concat((df, qu_list), axis=1)
+    df.drop(['YearBuilt'], axis = 1, inplace = True)
+    df.drop(['MoSold'], axis = 1, inplace = True)
+    df.drop(['YrSold'], axis = 1, inplace = True)
     return df
 
 
 def log1p(df):
     t = ['LotFrontage', 'LotArea', 'MasVnrArea', 'BsmtFinSF1', 'BsmtFinSF2', 
          'BsmtUnfSF', 'TotalBsmtSF', '1stFlrSF', '2ndFlrSF', 'LowQualFinSF', 
-         'GrLivArea', 'BsmtFullBath', 'BsmtHalfBath', 'FullBath', 'HalfBath', 
-         'BedroomAbvGr', 'KitchenAbvGr', 'TotRmsAbvGrd', 'Fireplaces', 
-         'GarageCars', 'GarageArea', 'PoolArea', 'MiscVal', 'YearRemodAdd', 
-         'OverallQual', 'OverallCond', 'ExterQual', 'ExterCond', 
-         'KitchenQual', 'HeatingQC', 'BsmtQual', 'BsmtCond', 'FireplaceQu', 
-         'GarageQual', 'PoolQC', 'PavedDrive']
-    # 'HasWoodDeck', 'HasOpenPorch', 'HasEnclosedPorch', 'Has3SsnPorch', 'HasScreenPorch'
+         'GrLivArea', 'GarageArea', 'PoolArea', 'MiscVal', 
+         'OverallQual', 'OverallCond', 'TotalSF']
+    
     df.loc[:, t] = np.log1p(df.loc[:, t])    
     return df
 
@@ -404,7 +312,6 @@ def ordinal_cats(df):
     cat_qual_7 = ['Fin', 'RFn', 'Unf', 'NA']
     cat_qual_8 = ['Y', 'N']
     
-
     df['ExterQual'] = pd.Categorical(df['ExterQual'], categories=cat_qual_1, ordered=True).codes
     df['ExterCond'] = pd.Categorical(df['ExterCond'], categories=cat_qual_1, ordered=True).codes
     df['BsmtQual'] = pd.Categorical(df['BsmtQual'], categories=cat_qual_1, ordered=True).codes
@@ -450,7 +357,19 @@ def dummies_missing_cols(train, test):
     test.reset_index(drop=True, inplace=True)
     return test
 
-    
+
+def addSquared(df):
+    columns_list = ['LotFrontage', 'TotalBsmtSF', '1stFlrSF', '2ndFlrSF', 'GrLivArea',
+                'GarageCars', 'GarageArea', 'OverallQual','ExterQual','BsmtQual',
+                'GarageQual','FireplaceQu','KitchenQual', 'TotalSF']
+    m = df.shape[1]
+    for c in columns_list:
+        df = df.assign(newcol=pd.Series(df[c]*df[c]).values)   
+        df.columns.values[m] = c + '_sq'
+        m += 1
+    return df 
+
+
 df_train = handle_missing(df_train)
 df_train = ordinal_cats(df_train)
 df_train = set_new_columns(df_train)
@@ -461,97 +380,30 @@ df_test = ordinal_cats(df_test)
 df_test = set_new_columns(df_test)
 df_test = change_types(df_test)
 
+# Square columns
+df_train = addSquared(df_train)
+df_test = addSquared(df_test)
 
-
-
-
-def addSquared(res, ls):
-    m = res.shape[1]
-    for l in ls:
-        res = res.assign(newcol=pd.Series(res[l]*res[l]).values)   
-        res.columns.values[m] = l + '_sq'
-        m += 1
-    return res 
-
-sqpredlist = ['YearRemodAdd', 'LotFrontage', 
-              'TotalBsmtSF', '1stFlrSF', '2ndFlrSF', 'GrLivArea',
-              'GarageCars', 'GarageArea',
-              'OverallQual','ExterQual','BsmtQual','GarageQual','FireplaceQu','KitchenQual']
-#df_train = addSquared(df_train, sqpredlist)
-#df_test = addSquared(df_test, sqpredlist)
-
-
-
-# Applying log transformation
-#train['SalePrice'] = np.log(train['SalePrice'])
-#dataset_full['SalePrice'] = np.log(dataset_full['SalePrice'])
-
-# Transformed histogram and normal probability plot
-#sns.distplot(df_train['SalePrice'], fit=norm)
-#fig = plt.figure()
-#res = stats.probplot(df_train['SalePrice'], plot=plt)
-
-# Histogram and normal probability plot
-#sns.distplot(df_train['GrLivArea'], fit=norm)
-#fig = plt.figure()
-#res = stats.probplot(df_train['GrLivArea'], plot=plt)
-
-# Data transformation
-#df_train['GrLivArea'] = np.log(df_train['GrLivArea'])
-#dataset_full['GrLivArea'] = np.log(dataset_full['GrLivArea'])
-
-# Transformed histogram and normal probability plot
-#sns.distplot(df_train['GrLivArea'], fit=norm)
-#fig = plt.figure()
-#res = stats.probplot(df_train['GrLivArea'], plot=plt)
-
-# Histogram and normal probability plot
-#sns.distplot(df_train['TotalBsmtSF'], fit=norm)
-#fig = plt.figure()
-#res = stats.probplot(df_train['TotalBsmtSF'], plot=plt)
-
-   
-
-
-# Scatter plot
-#plt.scatter(df_train['GrLivArea'], df_train['SalePrice'])
-# As suggested by many participants, we remove several outliers
+# Remove several outliers
 df_train.drop(df_train[(df_train['OverallQual']<5) & (df_train['SalePrice']>200000)].index, inplace=True)
 df_train.drop(df_train[(df_train['GrLivArea']>4000) & (df_train['SalePrice']<300000)].index, inplace=True)
 df_train.reset_index(drop=True, inplace=True)
 
-
-
-#df_full.BsmtFinSF1.clip(df_full.BsmtFinSF1.mean() - (3*df_full.BsmtFinSF1.std()), df_full.BsmtFinSF1.mean() + (3*df_full.BsmtFinSF1.std()), inplace=True)
-#df_full.BsmtFinSF2.clip(df_full.BsmtFinSF2.mean() - (3*df_full.BsmtFinSF2.std()), df_full.BsmtFinSF2.mean() + (3*df_full.BsmtFinSF2.std()), inplace=True)
-#df_full.TotalBsmtSF.clip(df_full.TotalBsmtSF.mean() - (3*df_full.TotalBsmtSF.std()), df_full.TotalBsmtSF.mean() + (3*df_full.TotalBsmtSF.std()), inplace=True)
-#df_full.LowQualFinSF.clip(df_full.LowQualFinSF.mean() - (3*df_full.LowQualFinSF.std()), df_full.LowQualFinSF.mean() + (3*df_full.LowQualFinSF.std()), inplace=True)
-#df_full.GrLivArea.clip(df_full.GrLivArea.mean() - (3*df_full.GrLivArea.std()), df_full.GrLivArea.mean() + (3*df_full.GrLivArea.std()), inplace=True)
-#df_full.GarageArea.clip(df_full.GarageArea.mean() - (3*df_full.GarageArea.std()), df_full.GarageArea.mean() + (3*df_full.GarageArea.std()), inplace=True)
-#df_full.BsmtFinSF1.clip(df_full.BsmtFinSF1.mean() - (3*df_full.BsmtFinSF1.std()), df_full.BsmtFinSF1.mean() + (3*df_full.BsmtFinSF1.std()), inplace=True)
-#df_full.BsmtFinSF1.clip(df_full.BsmtFinSF1.mean() - (3*df_full.BsmtFinSF1.std()), df_full.BsmtFinSF1.mean() + (3*df_full.BsmtFinSF1.std()), inplace=True)
-
-
+# Log
 df_train = log1p(df_train)
 df_train['SalePrice'] = np.log1p(df_train['SalePrice'])
 df_test = log1p(df_test)
 
-
 # Convert categorical variables into dummies 
 df_train = get_dummies(df_train)
 df_test = get_dummies(df_test)
-
 df_test = dummies_missing_cols(df_train, df_test)
-
-from sklearn.grid_search import ParameterGrid
-from sklearn.metrics import mean_squared_error
-from sklearn.cross_validation import StratifiedKFold, KFold
-from sklearn.linear_model import Ridge, RidgeCV, ElasticNet, LassoCV, LassoLarsCV
 
 y = df_train.SalePrice
 df_train.drop(['SalePrice'], axis=1, inplace=True)
 
-model_lasso = LassoCV(alphas = [1, 0.1, 0.001, 0.0005, 5e-4], max_iter=70000).fit(df_train, y)
+model_lasso = LassoCV(alphas = [1, 0.1, 0.001, 0.0005, 5e-4], max_iter=5000)
+model_lasso.fit(df_train, y)
 
 coef = pd.Series(model_lasso.coef_, index = df_train.columns)
 
@@ -575,7 +427,145 @@ plt.show()
     
 lasso_preds = np.expm1(model_lasso.predict(df_test))
 
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor
 
-solution = pd.DataFrame({"id":df_test.Id, "SalePrice":lasso_preds})
-solution.to_csv("test_set_prediction.csv", index = False)
+from sklearn.kernel_ridge import KernelRidge
+
+
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import RobustScaler
+from sklearn.linear_model import Lasso
+
+# Convert train to numpy array and delete index column
+X = np.array(df_train)
+X = np.delete(X, 0, axis=1)
+
+test_errors_regr_lasso = []
+test_errors_regr_ridge = []
+test_errors_regr_gbr = []
+test_errors_regr_enet = []
+test_errors_regr_lasso_stacked = []
+
+nFolds = 20
+ifold = 1
+models = []
+
+kf = KFold(n_splits=nFolds, random_state=241, shuffle=True)
+
+for train_index, test_index in kf.split(X):
+    print('fold: ',ifold)
+    ifold = ifold + 1    
+    
+    X_train, X_test = X[train_index], X[test_index]
+    y_train, y_test = y[train_index], y[test_index]
+    
+    # lasso
+    regr_lasso = make_pipeline(RobustScaler(), Lasso(alpha = 0.0003, random_state=1, max_iter=50000))
+    regr_lasso.fit(X_train, y_train)
+    regr_lasso_train_pred = regr_lasso.predict(X_train)
+    regr_lasso_test_pred = regr_lasso.predict(X_test)
+
+
+    # Ridge
+    regr_ridge = Ridge(alpha=9.0, fit_intercept = True)
+    regr_ridge.fit(X_train, y_train)
+    regr_ridge_train_pred = regr_ridge.predict(X_train)
+    regr_ridge_test_pred = regr_ridge.predict(X_test)
+
+
+    # Gradient Boosting    
+    regr_gbr = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.02,
+                                          max_depth=4, max_features='sqrt',
+                                          min_samples_leaf=15, min_samples_split=50,
+                                          loss='huber', random_state = 5)         
+    regr_gbr.fit(X_train, y_train)
+    regr_gbr_train_pred = regr_gbr.predict(X_train)
+    regr_gbr_test_pred = regr_gbr.predict(X_test)
+        
+       
+    # Elastic Net
+    regr_enet = make_pipeline(RobustScaler(), ElasticNet(alpha=4.0, l1_ratio=0.005, random_state=3))
+    regr_enet.fit(X_train, y_train)
+    regr_enet_train_pred = regr_enet.predict(X_train) 
+    regr_enet_test_pred = regr_enet.predict(X_test) 
+    
+        
+    # Stacking
+    stacked_set = pd.DataFrame({'A' : []})
+    stacked_set = pd.concat([stacked_set, pd.DataFrame(regr_lasso_test_pred)], axis=1)
+    stacked_set = pd.concat([stacked_set, pd.DataFrame(regr_ridge_test_pred)], axis=1)
+    stacked_set = pd.concat([stacked_set, pd.DataFrame(regr_gbr_test_pred)], axis=1) 
+    stacked_set = pd.concat([stacked_set, pd.DataFrame(regr_enet_test_pred)], axis=1)
+    product = (regr_lasso_test_pred*regr_ridge_test_pred*regr_gbr_test_pred*regr_enet_test_pred) ** (1.0/4.0)
+    stacked_set = pd.concat([stacked_set, pd.DataFrame(product)], axis=1)
+    Xstack = np.array(stacked_set)
+    Xstack = np.delete(Xstack, 0, axis=1)
+    regr_lasso_stacked = Lasso(alpha = 0.0001,fit_intercept = True)
+    regr_lasso_stacked.fit(Xstack, y_test)
+    regr_lasso_stacked_Xstack_pred = regr_lasso_stacked.predict(Xstack)
+    
+    models.append([regr_ridge, regr_lasso, regr_gbr, regr_enet, regr_lasso_stacked])
+    
+    test_errors_regr_lasso.append(np.square(regr_lasso_test_pred - y_test).mean() ** 0.5)
+    test_errors_regr_ridge.append(np.square(regr_ridge_test_pred - y_test).mean() ** 0.5)
+    test_errors_regr_gbr.append(np.square(regr_gbr_test_pred - y_test).mean() ** 0.5)
+    test_errors_regr_enet.append(np.square(regr_enet_test_pred - y_test).mean() ** 0.5)
+    test_errors_regr_lasso_stacked.append(np.square(regr_lasso_stacked_Xstack_pred - y_test).mean() ** 0.5)
+
+
+print('Lasso test error: ', np.mean(test_errors_regr_lasso))
+print('Ridge test error: ', np.mean(test_errors_regr_ridge))
+print('Gradient Boosting test error: ', np.mean(test_errors_regr_gbr))
+print('Elastic Net test error: ', np.mean(test_errors_regr_enet))
+print('Lasso stacked test error: ', np.mean(test_errors_regr_lasso_stacked))
+
+
+# Convert test to numpy array and delete index column
+X_score = np.array(df_test)
+X_score = np.delete(X_score, 0, axis=1)
+M = X_score.shape[0]
+scores_final = 1+np.zeros(M)
+
+for model in models:
+    model_lasso = model[0]
+    model_ridge = model[1]
+    model_gbr = model[2]
+    model_enet = model[3]
+    model_lasso_stacked = model[4]
+    
+    model_lasso_scores = model_lasso.predict(X_score)
+    model_ridge_scores = model_ridge.predict(X_score)
+    model_gbr_scores = model_gbr.predict(X_score)
+    model_enet_scores = model_enet.predict(X_score)
+    
+    stacked_sets = pd.DataFrame({'A' : []})
+    stacked_sets = pd.concat([stacked_sets, pd.DataFrame(model_lasso_scores)],axis=1)
+    stacked_sets = pd.concat([stacked_sets, pd.DataFrame(model_ridge_scores)],axis=1)
+    stacked_sets = pd.concat([stacked_sets, pd.DataFrame(model_gbr_scores)],axis=1)
+    stacked_sets = pd.concat([stacked_sets, pd.DataFrame(model_enet_scores)],axis=1)
+    
+    product = (model_lasso_scores*model_ridge_scores*model_gbr_scores*model_enet_scores) ** (1.0/4.0)
+    stacked_sets = pd.concat([stacked_sets, pd.DataFrame(product)], axis=1)    
+    Xstacks = np.array(stacked_sets)
+    Xstacks = np.delete(Xstacks, 0, axis=1)
+    scores_final = scores_final * model_lasso_stacked.predict(Xstacks)
+
+
+scores_final = scores_final ** (1/nFolds)
+
+Id = df_test['Id']
+fin_score = pd.DataFrame({'SalePrice': np.exp(scores_final)-1})
+fin_data = pd.concat([Id,fin_score],axis=1)
+    
+
+# Brutal approach to deal with predictions close to outer range 
+q1 = fin_data['SalePrice'].quantile(0.0042)
+q2 = fin_data['SalePrice'].quantile(0.99)
+fin_data['SalePrice'] = fin_data['SalePrice'].apply(lambda x: x if x > q1 else x*0.77)
+fin_data['SalePrice'] = fin_data['SalePrice'].apply(lambda x: x if x < q2 else x*1.1)
+
+
+# Output    
+fin_data.to_csv('test_set_prediction.csv', sep=',', index = False)
       
