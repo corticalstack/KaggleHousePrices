@@ -1,4 +1,4 @@
-# Jon-Paul Boyd - Kaggle - Classifier to Predict Titantic Survial 
+# Jon-Paul Boyd - Kaggle - House Value Prediction
 # Importing the libraries
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -7,10 +7,12 @@ from scipy.stats import norm
 from scipy import stats
 import seaborn as sns
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.grid_search import ParameterGrid
-from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import KFold
-from sklearn.linear_model import Ridge, RidgeCV, ElasticNet, LassoCV, LassoLarsCV
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import Ridge, ElasticNet, LassoCV
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import RobustScaler
+from sklearn.linear_model import Lasso
 
 #processDataAnalysis=True
 processDataAnalysis=False
@@ -427,16 +429,6 @@ plt.show()
     
 lasso_preds = np.expm1(model_lasso.predict(df_test))
 
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.ensemble import GradientBoostingRegressor
-
-from sklearn.kernel_ridge import KernelRidge
-
-
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import RobustScaler
-from sklearn.linear_model import Lasso
-
 # Convert train to numpy array and delete index column
 X = np.array(df_train)
 X = np.delete(X, 0, axis=1)
@@ -564,7 +556,6 @@ q1 = fin_data['SalePrice'].quantile(0.0042)
 q2 = fin_data['SalePrice'].quantile(0.99)
 fin_data['SalePrice'] = fin_data['SalePrice'].apply(lambda x: x if x > q1 else x*0.77)
 fin_data['SalePrice'] = fin_data['SalePrice'].apply(lambda x: x if x < q2 else x*1.1)
-
 
 # Output    
 fin_data.to_csv('test_set_prediction.csv', sep=',', index = False)
